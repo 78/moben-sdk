@@ -18,6 +18,7 @@
     "dist",
     "template",
     "README.md",
+    "docs",
     "REMOTE_APPS.md",
     "examples/machine/app.ts",
     "examples/machine/package.json",
