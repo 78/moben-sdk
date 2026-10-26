@@ -105,6 +105,22 @@ export function selectDevicePort(ports: DevicePort[]): string {
   return candidates[0].path;
 }
 
+/**
+ * @internal Explain an explicit --port that the USB metadata does not support.
+ * Opening it anyway is allowed, but a silent wait that ends in a plain timeout
+ * hides the real cause: the port is not a USB serial candidate at all.
+ */
+export function describeExplicitPort(port: string, ports: DevicePort[]): string | undefined {
+  // Windows accepts both COM3 and the \\.\COM3 device path, in any case.
+  const key = (path: string) => path.replace(/^\\\\\.\\/, '').toLowerCase();
+  const chosen = ports.find(candidate => key(candidate.path) === key(port));
+  if (chosen?.candidate) return undefined;
+  const alternatives = ports.filter(candidate => candidate.candidate);
+  const hint = alternatives.length ? ` The Moben candidate is ${alternatives.map(candidate => candidate.path).join(', ')}.` : '';
+  if (!chosen) return `${port} is not an enumerated serial port.${hint || ' Check the data cable, USB port, driver and Low power mode.'} Trying it anyway.`;
+  return `${port} has no Moben USB ID (VID_303A/PID_1001).${hint} Trying it anyway.`;
+}
+
 function fields(result: DeviceResult): Record<string, string> {
   if (typeof result !== 'string') throw new DeviceError('protocol_error', 'Expected a USB field response.');
   return parseFields(result);

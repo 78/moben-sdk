@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { inflateSync } from 'node:zlib';
 import test from 'node:test';
-import { connectDeviceTransport, DeviceError, normalizeDevicePorts, releaseDeviceControlLines, selectDevicePort, validateDeviceUrl } from '../src/device';
+import { connectDeviceTransport, describeExplicitPort, DeviceError, normalizeDevicePorts, releaseDeviceControlLines, selectDevicePort, validateDeviceUrl } from '../src/device';
 import { crc32, DeviceFrame, DeviceProtocol, parseFields, type DeviceSnapshot, type DeviceLog } from '../src/device-protocol';
 
 const capabilities = 'version=1 tasks=1 keys=voice,prev,next,menu events=click,long voice_edges=down,up open=1 text=base64 snapshot=1 capture=PANEL,L8 max_line=128';
@@ -225,6 +225,20 @@ test('discovery never treats generic USB IDs as proof and handles Mac aliases', 
   assert.throws(() => selectDevicePort([]), { code: 'no_device' });
   assert.throws(() => selectDevicePort([{ path: 'COM3', candidate: false }]), { code: 'no_device' });
   assert.throws(() => selectDevicePort([{ path: 'COM3', candidate: true }, { path: 'COM4', candidate: true }]), { code: 'multiple_devices' });
+});
+
+test('an explicit port outside the USB candidates is explained rather than tried silently', () => {
+  const ports = normalizeDevicePorts([
+    { path: 'COM1' },
+    { path: 'COM3', vendorId: '303A', productId: '1001' }
+  ], 'win32');
+  assert.equal(describeExplicitPort('COM3', ports), undefined);
+  // Windows accepts the lower-case name and the \\.\ device path for the same port.
+  assert.equal(describeExplicitPort('com3', ports), undefined);
+  assert.equal(describeExplicitPort('\\\\.\\COM3', ports), undefined);
+  assert.match(describeExplicitPort('COM1', ports)!, /^COM1 has no Moben USB ID \(VID_303A\/PID_1001\)\. The Moben candidate is COM3\. Trying it anyway\.$/);
+  assert.match(describeExplicitPort('COM9', ports)!, /^COM9 is not an enumerated serial port\. The Moben candidate is COM3\. Trying it anyway\.$/);
+  assert.match(describeExplicitPort('COM9', [])!, /not an enumerated serial port\. Check the data cable.*Trying it anyway\.$/);
 });
 
 test('control line updates always specify both flags and release RTS before DTR', async () => {

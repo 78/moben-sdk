@@ -68,6 +68,35 @@ test('actual CLI help and invalid USB arguments need no hardware', () => {
   }
 });
 
+test('an explicit --port outside the USB candidates warns first and is still attempted', async () => {
+  const f = fixture();
+  f.dependencies.listDevices = async () => [{ path: 'COM1', candidate: false }, { path: 'COM3', candidate: true }];
+
+  const text = await output(() => runDeviceCommand('status', [], { port: 'COM1' }, f.dependencies));
+  assert.equal(text.code, 0);
+  assert.match(text.stderr(), /warning: COM1 has no Moben USB ID .*COM3\. Trying it anyway\./);
+  assert.ok(f.calls.includes('connect'), 'an explicit port is attempted, not rejected');
+
+  const json = await output(() => runDeviceCommand('status', [], { json: true, port: 'COM1' }, f.dependencies));
+  assert.equal(json.code, 0);
+  assert.match(JSON.parse(json.stdout()).warnings[0], /COM1 has no Moben USB ID/);
+  assert.match(json.stderr(), /warning: COM1 has no Moben USB ID/, 'a failed JSON run has no envelope, so stderr still carries it');
+
+  const candidate = await output(() => runDeviceCommand('status', [], { json: true, port: 'COM3' }, f.dependencies));
+  assert.deepEqual(JSON.parse(candidate.stdout()).warnings, []);
+
+  // The warning must survive the very failure it explains: COM1 opens, then
+  // never answers, and hello() is where the generic timeout is raised.
+  const failing = fixture();
+  failing.dependencies.listDevices = async () => [{ path: 'COM1', candidate: false }, { path: 'COM3', candidate: true }];
+  failing.dependencies.connectDevice = async () => { throw new DeviceError('timeout', 'USB response timed out.'); };
+  const failed = await output(async () => {
+    await assert.rejects(runDeviceCommand('status', [], { port: 'COM1' }, failing.dependencies), { code: 'timeout' });
+    return 0;
+  });
+  assert.match(failed.stderr(), /warning: COM1 has no Moben USB ID .*COM3/);
+});
+
 test('list enumerates without connecting and all device commands emit JSON', async () => {
   const work = await mkdtemp(join(tmpdir(), 'moben-usb-cli-'));
   try {

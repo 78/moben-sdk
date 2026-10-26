@@ -2,7 +2,7 @@ import { writeFile, rename, unlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { openSync, closeSync, writeSync } from 'node:fs';
 import { dirname, basename, join, resolve } from 'node:path';
-import { connectDevice, DeviceError, listDevices, validateDeviceKey, validateDeviceText, validateDeviceTimeout, validateDeviceUrl, type DeviceButton, type DeviceKeyEvent, type CaptureFormat, type DeviceClient, type DeviceLog } from './device';
+import { connectDevice, describeExplicitPort, DeviceError, listDevices, validateDeviceKey, validateDeviceText, validateDeviceTimeout, validateDeviceUrl, type DeviceButton, type DeviceKeyEvent, type CaptureFormat, type DeviceClient, type DeviceLog, type DevicePort } from './device';
 
 export const DEVICE_HELP = `Usage: moben device <command> [options]
 
@@ -20,7 +20,8 @@ export const DEVICE_HELP = `Usage: moben device <command> [options]
 
 Options:
   --port <path>           COM3 (Windows), /dev/ttyACM0 (Linux), /dev/cu.usbmodem101 (macOS)
-                          Omit only when exactly one Espressif USB Serial/JTAG candidate exists
+                          Omit only when exactly one Espressif USB Serial/JTAG candidate exists;
+                          an explicit port outside that list is still tried, after a warning
   --timeout <seconds>     Per-command timeout, default 8; range (0, 120]
   --event <event>         key: click (default), long, down or up; menu has no down/up
   --output <file>         screenshot: required PNG; snapshot: optional JSON; logs: optional append file
@@ -68,6 +69,19 @@ export async function saveDeviceFile(path: string, data: Buffer): Promise<string
   return output;
 }
 
+/**
+ * An explicit --port is still attempted, but say up front when it cannot be the
+ * device. Otherwise the command just waits out --timeout and reports a generic
+ * USB timeout, which reads like a cable or firmware fault.
+ */
+async function explicitPortWarnings(port: string, list: () => Promise<DevicePort[]>): Promise<string[]> {
+  let ports: DevicePort[];
+  // Enumeration failures are reported by connectDevice with a better message.
+  try { ports = await list(); } catch { return []; }
+  const warning = describeExplicitPort(port, ports);
+  return warning ? [warning] : [];
+}
+
 // Injectable functions keep CLI tests independent of native addons and hardware.
 export async function runDeviceCommand(command: string | undefined, args: string[], flags: DeviceFlags,
   dependencies = { listDevices, connectDevice }, signal?: AbortSignal): Promise<number> {
@@ -78,6 +92,11 @@ export async function runDeviceCommand(command: string | undefined, args: string
     print({ ports }, ports.length ? ports.map(port => `${port.path}${port.candidate ? '  candidate (brand unconfirmed)' : ''}${port.manufacturer ? `  ${port.manufacturer}` : ''}`).join('\n') : 'No serial ports found. Check the data cable, USB port, device power, driver and low power setting.');
     return 0;
   }
+  const portWarnings = flags.port === undefined ? [] : await explicitPortWarnings(flags.port, dependencies.listDevices);
+  // Say this before connecting, on stderr in both modes: a port that never
+  // answers would otherwise bury the warning behind a generic USB timeout, and
+  // a JSON run that fails has no envelope to carry it.
+  for (const warning of portWarnings) process.stderr.write(`warning: ${warning}\n`);
   if (command === 'logs') {
     const file = flags.output ? openSync(resolve(flags.output), 'a') : undefined;
     let device: DeviceClient | undefined;
@@ -107,8 +126,9 @@ export async function runDeviceCommand(command: string | undefined, args: string
   const device = await dependencies.connectDevice({ port: flags.port, timeoutMs, signal });
   try {
     const hello = await device.hello();
-    const warnings: string[] = hello.identity === 'legacy' ? ['Compatible legacy PSG1 device; Moben identity is unconfirmed. Update the firmware for brand identification.'] : [];
-    if (!flags.json) for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
+    const legacy = 'Compatible legacy PSG1 device; Moben identity is unconfirmed. Update the firmware for brand identification.';
+    const warnings: string[] = [...portWarnings, ...(hello.identity === 'legacy' ? [legacy] : [])];
+    if (!flags.json && hello.identity === 'legacy') process.stderr.write(`warning: ${legacy}\n`);
     const envelope = (data: object) => ({ port: device.port, identity: hello.identity, warnings, ...data });
     switch (command) {
       case 'hello':
