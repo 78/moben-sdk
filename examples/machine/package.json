@@ -1,0 +1,18 @@
+{
+  "name": "moben-machine-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Moben remote app that shows the configuration and status of the computer it runs on.",
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "start": "tsx app.ts"
+  },
+  "dependencies": {
+    "@moben-ai/app-sdk": "^0.7.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

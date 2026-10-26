@@ -1,0 +1,10 @@
+node_modules/
+dist/
+test/.tmp-*/
+.env
+.env.*
+!.env.example
+*.tgz
+npm-debug.log*
+.DS_Store
+._*
