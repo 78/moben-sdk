@@ -10,7 +10,7 @@
     "start": "tsx app.ts"
   },
   "dependencies": {
-    "@moben-ai/app-sdk": "^0.7.1"
+    "@moben-ai/app-sdk": "^0.7.2"
   },
   "devDependencies": {
     "tsx": "^4.19.0"
