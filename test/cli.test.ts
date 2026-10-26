@@ -170,3 +170,23 @@ test('CLI --version matches the installable package version', () => {
   assert.equal(run.status, 0, run.stderr);
   assert.equal(run.stdout.trim(), JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version);
 });
+
+test('loads a CommonJS TypeScript entry that imports the SDK', t => {
+  const work = mkdtempSync(join(root, 'test/.tmp-'));
+  t.after(() => rmSync(work, { recursive: true, force: true }));
+  // Without "type": "module", Node and tsx compile the entry as CommonJS. Its
+  // own import of the SDK must not be evaluated through require() as well, or
+  // Node fails with ERR_REQUIRE_CYCLE_MODULE before any page is rendered.
+  writeFileSync(join(work, 'package.json'), JSON.stringify({ name: 'commonjs-app', private: true }));
+  writeFileSync(join(work, 'app.ts'), `
+import { defineApp, page } from ${JSON.stringify(join(root, 'src/index.ts'))};
+export const app = defineApp({
+  manifest: { manifestVersion: 1, id: 'commonjs-app', name: 'CommonJS', version: '0.1.0', entry: '/', permissions: [], agent: { instructions: 'CommonJS entry.', tools: [] } },
+  pages: { '/': ctx => page(ctx).paragraph('CommonJS entry').toString() }
+});
+`);
+  const result = moben(work, 'app', 'page');
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(result.data.issues, []);
+  assert.match(result.data.markdown, /CommonJS entry/);
+});

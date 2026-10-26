@@ -69,21 +69,63 @@ const isApp = (value: unknown): value is AppDefinition =>
   Boolean(value) && typeof value === 'object' && typeof (value as AppDefinition).manifest === 'object' && typeof (value as AppDefinition).pages === 'object';
 
 /**
+ * tsx publishes both builds for "tsx/esm/api", and require.resolve() picks its
+ * CommonJS one. Importing that build fails where it loads its own ES module
+ * sibling, so ask for the ES module build instead.
+ */
+function esmApi(api: string): string {
+  if (!api.endsWith('.cjs')) return api;
+  const sibling = `${api.slice(0, -'.cjs'.length)}.mjs`;
+  return existsSync(sibling) ? sibling : api;
+}
+
+/**
+ * Imports the entry, compiling TypeScript with the app's own tsx.
+ *
+ * tsImport() lets tsx follow the app's package.json and load the entry as
+ * CommonJS or as an ES module. Registering the loader and calling import()
+ * instead makes Node treat a CommonJS TypeScript entry as an ES module that is
+ * required from inside its own evaluation, which fails with
+ * ERR_REQUIRE_CYCLE_MODULE as soon as the entry imports an ES module package.
+ */
+async function importEntry(entry: string): Promise<Record<string, unknown>> {
+  const url = pathToFileURL(entry).href;
+  if (!/\.[cm]?tsx?$/.test(entry)) return import(url) as Promise<Record<string, unknown>>;
+  const api = resolveFromApp(entry, 'tsx/esm/api');
+  if (!api) throw new Error('Loading a TypeScript entry needs tsx in the app: run npm install --save-dev tsx');
+  const tsx = await import(pathToFileURL(esmApi(api)).href) as {
+    tsImport?: (specifier: string, options: { parentURL: string }) => Promise<Record<string, unknown>>;
+    register?: () => void;
+  };
+  if (!tsx.tsImport) {
+    // tsx before 4.5 has no tsImport; the loader registration it does have
+    // still works for entries Node does not evaluate through require().
+    tsx.register?.();
+    return import(url) as Promise<Record<string, unknown>>;
+  }
+  return tsx.tsImport(url, { parentURL: url });
+}
+
+/** The app an entry exports instead of connecting, including from a CommonJS entry, which arrives as the default export. */
+function exportedApp(exports: Record<string, unknown>): AppDefinition | undefined {
+  const candidates = [exports.default, exports.app];
+  const namespace = exports.default;
+  if (namespace && typeof namespace === 'object') {
+    candidates.push((namespace as Record<string, unknown>).default, (namespace as Record<string, unknown>).app);
+  }
+  return candidates.find(isApp);
+}
+
+/**
  * Imports the entry with connect() captured, so no connection is opened.
  * Entries that export the app instead of connecting are supported too.
  */
 export async function loadApps(entry: string): Promise<AppDefinition[]> {
   const captured: AppDefinition[] = [];
   (globalThis as Record<symbol, unknown>)[CAPTURE_APP] = (app: AppDefinition) => captured.push(app);
-  if (/\.[cm]?tsx?$/.test(entry)) {
-    const api = resolveFromApp(entry, 'tsx/esm/api');
-    if (!api) throw new Error('Loading a TypeScript entry needs tsx in the app: run npm install --save-dev tsx');
-    const { register } = await import(pathToFileURL(api).href);
-    register();
-  }
-  const exports = await import(pathToFileURL(entry).href);
+  const exports = await importEntry(entry);
   if (!captured.length) {
-    const exported = [exports.default, exports.app, exports.default?.default].find(isApp);
+    const exported = exportedApp(exports);
     if (exported) captured.push(defineApp(exported));
   }
   if (!captured.length) throw new Error(`${entry} neither calls connect(app) nor exports an app.`);
