@@ -2,6 +2,13 @@
 
 Moben SDK includes **App development** and **USB device debugging** in one package. The public repository is `78/moben-sdk`; the npm package remains `@moben-ai/app-sdk`, so existing import paths and APIs continue to work.
 
+| Capability | JavaScript / TypeScript entry points | CLI |
+| --- | --- | --- |
+| App development | `defineApp()`, page helpers, `connect()` | `moben app ...` |
+| USB device debugging | `listDevices()`, `connectDevice()` | `moben device ...` |
+
+Both capabilities are exported from `@moben-ai/app-sdk`. App code uses the cloud connection; USB debugging uses a local serial connection with an optional, dynamically loaded `serialport` dependency. Ordinary app development works without loading that dependency. The current flat exports and command groups remain the public API.
+
 Version **0.7.0** is initially distributed through GitHub Releases. To install it before the npm release:
 
 ```sh
@@ -52,7 +59,7 @@ Tools may set `showCall: false` in `manifest.agent.tools` to hide their call ico
 
 Pages, actions, tools and Action Sheets follow the same contract as official Moben apps. Throw `AppRequestError(status, message)` to show a message to the user. All pages stream by default; strings are one chunk and generators may keep yielding. Apps can also take voice input: a page can send what the user says to the app, as recognized text or as the recording itself (`REMOTE_APPS.md`, section 9).
 
-## Command line
+## App development commands
 
 The package installs a `moben` command. Account commands sit at the top level; app commands are under `moben app`. `app page`, `app action`, `app tool`, `app voice` and `app validate` load your app without connecting and run the same checks as the cloud, so you and coding agents can test changes before trying them on a device. Before 0.5 the app commands had no `app` prefix; the short forms still work for now and print a note.
 
@@ -169,12 +176,6 @@ See `REMOTE_APPS.md` for the protocol and limits, and its sections 9 and 10 for 
 
 ## Development
 
-`api/src/app-sdk` in the Moben cloud repository is the single source of the page and manifest helpers; `npm run build` copies it into `src/core` before compiling. Gateway checks (`page-check.ts`, `remote-hello.ts`) come from the same source, so the CLI and the cloud agree. Run `npm test` for the connection and CLI tests.
-
-Text voice routes deliver final text only through the existing `voice.start/end`: `await speech.done` and the one-value `speech.transcripts` iterator remain compatible. Device live transcription is independent. If the API connection closes during audio input, the SDK ends `chunks` and resolves `done` with `complete: false` so your handler can save received audio; explicit cancellation still aborts. There is no automatic recording reconnect, acknowledgement or replay.
-
-## Development
-
 ```sh
 npm ci
 npm test
@@ -182,4 +183,22 @@ npm run typecheck
 npm run build
 ```
 
-`src/core` contains the shared page/manifest helpers. This standalone repository includes their source snapshot so it builds without the product server repository. In the product monorepo, `scripts/sync-core.mjs` refreshes that snapshot from the upstream helpers before tests/builds.
+### Implementation boundaries
+
+App definition, cloud connectivity, request dispatch and local app commands live in `src/define.ts`, `src/connect.ts`, `src/dispatch.ts`, `src/local.ts` and the App portion of `src/cli.ts`. Shared page, manifest and validation helpers live in `src/core`.
+
+USB transport and the device client live in `src/device.ts`, protocol parsing and frame/snapshot validation in `src/device-protocol.ts`, and device commands in `src/device-cli.ts`. Keep serial transport details within those modules. Adding a device command should preserve the independent App connection and the optional loading of serial dependencies.
+
+Text voice routes deliver final text only through the existing `voice.start/end`: `await speech.done` and the one-value `speech.transcripts` iterator remain compatible. Device live transcription is independent. If the API connection closes during audio input, the SDK ends `chunks` and resolves `done` with `complete: false` so your handler can save received audio; explicit cancellation still aborts, and there is no automatic recording reconnect, acknowledgement or replay.
+
+### Source ownership and synchronization
+
+The product monorepo remains the source for this release workflow:
+
+- `packages/app-sdk` owns the SDK-specific implementation, tests, templates and documentation.
+- `api/src/app-sdk` owns the shared page/manifest helpers and gateway validation. In the product monorepo, `scripts/sync-core.mjs` regenerates the SDK's `src/core` from that source before tests and builds.
+- The public `78/moben-sdk` repository contains a standalone SDK snapshot, including `src/core` and its lockfile. With no upstream helper directory present, the script uses the checked-in snapshot, so contributors can install, test and build without the product server repository.
+
+Changes accepted in the public repository should first be incorporated into the appropriate source directory above, then exported back to the standalone snapshot. Shared-helper changes belong in `api/src/app-sdk`; SDK-only changes belong in `packages/app-sdk`. This keeps the public and product copies on the same implementation.
+
+The sync script refreshes shared helpers only; it does not synchronize Git repositories. For a release, refresh the shared helpers, run SDK tests and type checks, and export the SDK sources plus the generated helper snapshot and lockfile to the public repository. Build and package that standalone snapshot for the versioned GitHub Release.
