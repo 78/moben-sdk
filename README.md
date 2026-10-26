@@ -5,12 +5,11 @@ Requires Node.js 20.12 or newer.
 
 ## Install
 
-Version **0.7.0** is available through [GitHub Releases](https://github.com/78/moben-sdk/releases/tag/v0.7.0); npm publication is pending.
-
 ```sh
-gh release download v0.7.0 --repo 78/moben-sdk --pattern 'moben-ai-app-sdk-0.7.0.tgz'
-npm install ./moben-ai-app-sdk-0.7.0.tgz
+npm install @moben-ai/app-sdk
 ```
+
+Release archives are also available on [GitHub](https://github.com/78/moben-sdk/releases).
 
 ## Build an app
 

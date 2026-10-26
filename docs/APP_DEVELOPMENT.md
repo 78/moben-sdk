@@ -6,18 +6,16 @@ Build Moben Markdown apps that run on your own computer or server. Devices reach
 
 ## Create and run an app
 
-After installing the SDK using the [README instructions](../README.md#install), run the following from the directory containing the downloaded archive:
+After installing the SDK using the [README instructions](../README.md#install), create and run a project:
 
 ```sh
 npx moben app init my-app
 cd my-app
-npm install ../moben-ai-app-sdk-0.7.0.tgz
+npm install
 npx moben login
 npm run check
 npm run dev
 ```
-
-Installing the archive in the generated project supplies version 0.7.0 while the npm release is pending. Once that version is available on npm, the generated dependency can be installed with `npm install`.
 
 ## JavaScript / TypeScript
 
