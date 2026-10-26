@@ -17,12 +17,19 @@ USB transport and the device client live in `src/device.ts`, protocol parsing an
 
 ## Source ownership and synchronization
 
-The product monorepo remains the source for this release workflow:
+This repository is the single maintenance and release entry point for SDK code, CLI commands, tests, templates, examples and documentation. SDK changes are committed here directly; Moben Cloud does not keep a second complete SDK package.
 
-- `packages/app-sdk` owns the SDK-specific implementation, tests, templates and documentation.
-- `api/src/app-sdk` owns the shared page/manifest helpers and gateway validation. In the product monorepo, `scripts/sync-core.mjs` regenerates the SDK's `src/core` from that source before tests and builds.
-- The public `78/moben-sdk` repository contains a standalone SDK snapshot, including `src/core` and its lockfile. With no upstream helper directory present, the script uses the checked-in snapshot, so contributors can install, test and build without the product server repository.
+Moben Cloud still owns `api/src/app-sdk`, which its built-in apps and gateway use at runtime. The SDK keeps a source snapshot of those shared page/manifest helpers and validators in `src/core`. Ordinary `npm test`, `npm run typecheck` and `npm run build` use that checked-in snapshot and require no Cloud checkout.
 
-Changes accepted in the public repository should first be incorporated into the appropriate source directory above, then exported back to the standalone snapshot. Shared-helper changes belong in `api/src/app-sdk`; SDK-only changes belong in `packages/app-sdk`. This keeps the public and product copies on the same implementation.
+When the shared contract changes, update and test the Cloud helpers first. From this SDK checkout, explicitly import that helper directory:
 
-The sync script refreshes shared helpers only; it does not synchronize Git repositories. For a release, refresh the shared helpers, run SDK tests and type checks, and export the SDK sources plus the generated helper snapshot and lockfile to the public repository. Build and package that standalone snapshot for the versioned GitHub Release.
+```sh
+npm run sync -- --source /path/to/moben-cloud/api/src/app-sdk
+npm test
+npm run typecheck
+npm run build
+```
+
+Use the path appropriate for your machine and shell. The import reads only visible TypeScript files and replaces `src/core` after checking the input. Review and commit the helper snapshot with its associated SDK changes; SDK-specific changes belong outside the generated helper directory.
+
+Release versions from this repository after the SDK checks pass. Publish the same built archive to npm and GitHub Release. Cloud protocol documentation and the SDK's `REMOTE_APPS.md` should be updated together when their shared contract changes.

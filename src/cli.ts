@@ -309,7 +309,7 @@ function commandInit(flags: Flags, dir?: string) {
   const files: Record<string, string> = {
     'app.ts': readFileSync(join(template, 'app.ts'), 'utf8').replace(/__APP_ID__/g, id),
     'AGENTS.md': readFileSync(join(template, 'AGENTS.md'), 'utf8'),
-    '.env.example': '# Not needed where you ran `npx moben login`.\n# In containers or CI, copy the key from ~/.config/moben/credentials.json:\n# MOBEN_DEVELOPER_KEY=mdk_...\n',
+    '.env.example': '# Not needed where you ran `npx moben login`.\n# In containers or CI, securely set MOBEN_DEVELOPER_KEY from the saved credentials key field.\n# Default: %APPDATA%\\moben\\credentials.json (Windows), ~/.config/moben/credentials.json (macOS/Linux).\n# MOBEN_CONFIG_DIR overrides the directory; macOS/Linux also respect XDG_CONFIG_HOME.\n# Use the path reported by moben login/whoami. Never print or commit credentials.\n# MOBEN_DEVELOPER_KEY=mdk_...\n',
     // npm drops .gitignore files from packages, so this one is written here.
     '.gitignore': 'node_modules/\n.env\ndata/\n',
     'package.json': `${JSON.stringify({

@@ -4,13 +4,15 @@ This directory is a Moben remote app created by `moben app init`. The app runs o
 
 ## Develop and test locally
 
+Requires Node.js 20.12 or newer. Check the operating system and current shell before running commands; adapt paths and environment variables to PowerShell/cmd on Windows or the shell on macOS/Linux. Do not assume Bash, Unix utilities or WSL. Prefer built-in Node APIs for portable app code.
+
 These commands run your code locally without connecting, using the same checks as the cloud. Run them after every change and fix all errors and warnings before asking the user to try the app on a device.
 
 - `npx moben app validate` checks the manifest and renders every page without parameters in English and Chinese. Pages with parameters are listed as skipped: render each of them yourself.
 - `npx moben app page /path` prints each validated part as it arrives; Ctrl+C stops a long page. Warnings on stderr (or `issues` with `--json`) say which links or images were removed and why.
 - `npx moben app action /notes/abc/delete --page /` runs an action as if its link was selected on that page and prints the page it returns. Pass the page that shows the link; the CLI warns when the link or the returned `initialFocus` is missing.
 - `npx moben app voice /notes/voice --text "Buy milk" --page /` records into a voice route as if the user spoke on that page and prints the result; use `--file memo.ogg` for an audio route.
-- `npx moben app tool add_note --args '{"text":"Buy milk"}'` calls a tool and prints its result and UI effects. On Windows, cmd and PowerShell 5.1 change the quotes: write the JSON to a file and pass `--args @args.json`, or pipe it with `--args -`.
+- `npx moben app tool add_note --args '{"text":"Buy milk"}'` calls a tool and prints its result and UI effects. On Windows, cmd and PowerShell 5.1 change the quotes: write UTF-8 JSON to a file and pass `--args "@args.json"`, or pipe it with `--args -`.
 - Add `--locale zh-CN` to see the Chinese version, `--timezone America/New_York` to test dates in another time zone, and `--json` for machine-readable output. Exit code 0 means success.
 
 ## Run on a device
@@ -18,7 +20,7 @@ These commands run your code locally without connecting, using the same checks a
 1. Run `npx moben whoami`. If it says "Not logged in", run `npx moben login` and show the user the link it prints: they open it on any computer or phone, sign in to Moben and approve. The command waits up to 10 minutes and saves a developer key for this computer, which every app on it uses. Never ask the user to paste a key into the chat or into code.
 2. Run `npm run dev`. It connects and restarts when files change. When `[app] online` appears, open the app from the app list on the device. The app appears in Console the first time it connects.
 
-On a server, run `npx moben login` once as the user that runs the app; over SSH it only prints the link. In containers or CI, copy the key from `~/.config/moben/credentials.json` into the `MOBEN_DEVELOPER_KEY` environment variable.
+On a server, run `npx moben login` once as the user that runs the app; over SSH it only prints the link. In containers or CI, securely set `MOBEN_DEVELOPER_KEY` from the `key` field of the credentials saved on the authorized computer. The default file is `%APPDATA%\moben\credentials.json` on Windows or `~/.config/moben/credentials.json` on macOS/Linux. `MOBEN_CONFIG_DIR` overrides the directory; macOS/Linux also respect `XDG_CONFIG_HOME`. Use the path reported by `moben login`/`moben whoami`. Set environment variables using the current shell: `$env:NAME = "value"` in PowerShell, `set "NAME=value"` in cmd, or `export NAME="value"` in Bash. Never print credentials or include them in chat or source code.
 
 ## Inspect a USB-connected device
 

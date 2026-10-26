@@ -8,6 +8,8 @@ Build Moben Markdown apps that run on your own computer or server. Devices reach
 
 After installing the SDK using the [README instructions](../README.md#install), create and run a project:
 
+Requires Node.js 20.12 or newer. Use commands and paths appropriate for your operating system and shell; Windows does not require Bash or WSL.
+
 ```sh
 npx moben app init my-app
 cd my-app
@@ -39,9 +41,11 @@ const app = defineApp({
 connect(app); // uses the key from `moben login` or MOBEN_DEVELOPER_KEY
 ```
 
-1. Run `npx moben login` and approve in the browser. It saves a developer key for this computer, used by every app on it. On a server, run `npx moben login` once as the user that runs the app; over SSH it only prints the link. In containers or CI, copy the key from `~/.config/moben/credentials.json` into the `MOBEN_DEVELOPER_KEY` environment variable.
+1. Run `npx moben login` and approve in the browser. It saves a developer key for this computer, used by every app on it. On a server, run `npx moben login` once as the user that runs the app; over SSH it only prints the link. In containers or CI, securely set `MOBEN_DEVELOPER_KEY` from the `key` field of the credentials saved on the authorized computer. Use the credentials path reported by `moben login`/`moben whoami` (defaults below). Never print credentials or include them in chat or source code.
 2. Give each app its own `manifest.id`, such as `hello` or `computer-status`. Run it with `node app.js` (or `tsx app.ts`). The app appears in Console the first time it connects, and the log shows `[moben] hello is online`.
 3. Open the app from the device app list. While the process is stopped the app shows as offline.
+
+The default credentials file is `%APPDATA%\moben\credentials.json` on Windows or `~/.config/moben/credentials.json` on macOS/Linux. `MOBEN_CONFIG_DIR` overrides the directory; macOS/Linux also respect `XDG_CONFIG_HOME`. Set environment variables with `$env:NAME = "value"` in PowerShell, `set "NAME=value"` in cmd, or `export NAME="value"` in Bash.
 
 `connect(app, options)` accepts `key` (defaults to `MOBEN_DEVELOPER_KEY`, then the key saved by `moben login`), `url` (defaults to `MOBEN_APP_CONNECT_URL`, the server you logged in to, or `wss://moben.cn/api/app-connect/ws`), `logger` and `onStatus`. It reconnects with backoff and stops when the key is revoked, the manifest is rejected, or another process connects as the same app. To run several apps in one process, call `connect()` once per app.
 
@@ -68,7 +72,7 @@ npx moben app voice /notes/voice --text "Buy milk" --page /   # or --file memo.o
 npx moben app dev                            # connect and restart when files change
 ```
 
-`--args` also accepts `@file.json` or `-` for stdin, which avoids quoting problems in cmd and Windows PowerShell. Warnings say which links or images the cloud would remove and why, and when a page or tool is too slow or too large. Add `--json` for machine-readable output; failures exit with a non-zero code. The entry defaults to `app.ts`; use `--entry` for another file and `--app` when one process connects several apps. TypeScript entries need `tsx` installed in the app.
+`--args` also accepts a UTF-8 JSON file (`--args "@file.json"`) or `-` for stdin, which avoids quoting problems in cmd and Windows PowerShell. Warnings say which links or images the cloud would remove and why, and when a page or tool is too slow or too large. Add `--json` for machine-readable output; failures exit with a non-zero code. The entry defaults to `app.ts`; use `--entry` for another file and `--app` when one process connects several apps. TypeScript entries need `tsx` installed in the app.
 
 `moben login` prints a link and a confirmation code. On a desktop you can press Enter to open the link; over SSH, on a server without a display, or when a coding agent runs the command, it only prints the link, which you can open on any computer or phone signed in to Moben. It creates a key on the machine where it runs and sends the cloud only its SHA-256 digest; the key becomes valid once you approve the request in Console, where it is listed as "CLI · <hostname>". It is saved in `~/.config/moben/credentials.json` (`%APPDATA%\moben` on Windows) with owner-only permissions. Logging in again replaces and revokes the previous key of this computer, and `moben logout` revokes and deletes it. `MOBEN_DEVELOPER_KEY` takes precedence over the saved key. Use `--api` or `MOBEN_API_URL` for another Moben server.
 
